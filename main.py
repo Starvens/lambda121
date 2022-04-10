@@ -75,7 +75,7 @@ def lambda_handler(event, context):
         # generate presigned url
         # TODO expiration time
         # response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}'})
-        response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}', 'ContentType': 'video/mp4'})
+        response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}', 'ContentType': 'application/octet-stream'})
 
         mycol.insert_one(rowInDb)
         logger.info('successfully inserted into mongo')
