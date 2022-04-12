@@ -1,6 +1,7 @@
 import json
 import os
 
+
 import pymongo
 import random
 import boto3
@@ -64,7 +65,7 @@ def lambda_handler(event, context):
 
         # TODO
         rowInDb = {
-            "uniqueUrl": curUrl,
+            "uniqueUrl": f'https://starvensdriveguest.s3.amazonaws.com/{curUrl}/{fileName}',
             "fileName": fileName,
             "isFileUploadedToS3": False,
             "ipAddress": ip,
@@ -75,16 +76,19 @@ def lambda_handler(event, context):
         # generate presigned url
         # TODO expiration time
         # response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}'})
-        response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}', 'ContentType': 'application/octet-stream'})
+        response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}', 'ContentType': 'binary/octet-stream'})
 
         mycol.insert_one(rowInDb)
         logger.info('successfully inserted into mongo')
 
-        temp = {'presignedUrl': response}
+        temp = {'presignedUrl': response, 'publicUrl': f'https://starvensdriveguest.s3.amazonaws.com/{curUrl}/{fileName}'}
 
         # x = mycol.insert_one(mydict)
         return {
             'statusCode': 200,
+            "headers": {
+                'Access-Control-Allow-Origin': '*'
+            },
             # 'body': json.dumps(event)
             'body': json.dumps(temp)
         }
