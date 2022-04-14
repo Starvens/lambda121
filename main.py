@@ -12,7 +12,7 @@ import datetime
 
 os.environ['TZ'] = 'US/Eastern'
 # mongo setup
-CONNECTION_STRING = "mongodb+srv://awsLambda:vQ1TkTcAgL9z8jHK@starvvenssimplefileshar.ruwbw.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
+CONNECTION_STRING = "mongodb+srv://awsLambda:<password>@starvvenssimplefileshar.ruwbw.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
 s3_client = boto3.client('s3')
 myclient = pymongo.MongoClient(CONNECTION_STRING)
 mydb = myclient["starvens"]
