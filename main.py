@@ -26,6 +26,7 @@ myclient = pymongo.MongoClient(CONNECTION_STRING)
 mydb = myclient["starvens"]
 urlCollection = mydb["uniqueUrls"]
 otpCollection = mydb["otpsGenerated"]
+fbCollection = mydb["feedback"]
 sendOtpTemplateId = 'd-c8703cd4d4c64ec0abe7f72152871c50'
 sendFileLinkTemplateId = 'd-5ee3dbd5c67440a6805ff2ad68ca0e92'
 timeZone = pytz.timezone('US/Central')
@@ -60,8 +61,8 @@ def generateUrlByCheckingMongo():
     return curUrl
 
 
-def getRowFromMongoForUniqueUrl(uniqueUrl):
-    records = urlCollection.find_one({'uniqueUrl': uniqueUrl})
+def getRowFromMongoForUniqueUrl(consId):
+    records = urlCollection.find_one({'consId': consId})
     records = [records] if records else []
     return records
 
@@ -82,7 +83,7 @@ def savePwd(req):
         raise Exception(f'The given uri doesnot exist in mongo {req}')
     hashedpwd = bcrypt.hashpw(req['pwd'].encode('utf-8'), bcrypt.gensalt())
     logger.info(f'the hashed password is {hashedpwd}')
-    newvalues = {"$set": {'updatedAt': datetime.datetime.now(), 'pwd': hashedpwd}}
+    newvalues = {"$set": {'updatedAt': datetime.datetime.now(), 'pwd': hashedpwd, 'optMsg': req['msg']}}
     findQuery = {'uniqueId': mongoRow['uniqueId']}
     urlCollection.update_one(findQuery, newvalues)
     return {'status': 'success'}
@@ -100,7 +101,7 @@ def validatePwd(req):
                                                                           'Key': f'{fileInMongo["uniqueId"]}/{fileInMongo["fileName"]}',
                                                                           })
         return {'fileName': fileInMongo['fileName'], 'fileSize': fileInMongo['fileSize'],
-                'fileUnits': fileInMongo['fileUnits'], 'presignedUrl': response}
+                'fileUnits': fileInMongo['fileUnits'], 'presignedUrl': response, 'optMsg': fileInMongo['optMsg']}
     else:
         raise Exception(f'Password doesnot match with the required password')
 
@@ -188,15 +189,16 @@ def validateOTP(req):
 def sendFileLinkToUser(req):
     toEmails = [(req["toEmail"], 'Starvens User')]
     emailData = {'toEmail': toEmails}
-    mongoRow = getRowFromMongoForUniqueUrl(req['fileLocation'])
+    mongoRow = getRowFromMongoForUniqueUrl(req['consId'])
     if len(mongoRow) == 0:
         raise Exception(f'noentry there in mongo for given unique url: {req}')
     mongoRow = mongoRow[0]
     expTime = datetime.datetime.now(timeZone) + datetime.timedelta(days=1)
     # emailRes = sendEmail(emailData)
+    publicUrl = f'http://localhost:3000/share/0/{mongoRow["uniqueId"]}'
     templateData = {'fileSize': f'{mongoRow["fileSize"]} {mongoRow["fileUnits"]}',
                     'expDate': str(f'{expTime.strftime("%d %B, %Y, %I:%M %p")} US/Central'),
-                    'fileLink': req['fileLocation'], 'fileName': mongoRow['fileName'], 'subject': req['subject'],
+                    'fileLink': publicUrl, 'fileName': mongoRow['fileName'], 'subject': req['subject'],
                     'content': req['content']}
     return sendEmailUsingTemplate(emailData, sendFileLinkTemplateId, templateData)
 
@@ -238,10 +240,16 @@ def getFileDetails(qParams):
         response = s3_client.generate_presigned_url('get_object', Params={'Bucket': 'starvensdrive',
                                                                           'Key': f'{publicId}/{fileInMongo["fileName"]}',
                                                                           })
+        optMsg = fileInMongo['optMsg'] if 'optMsg' in fileInMongo else ''
         return {'fileName': fileInMongo['fileName'], 'fileSize': fileInMongo['fileSize'],
-                'fileUnits': fileInMongo['fileUnits'], 'presignedUrl': response}
+                'fileUnits': fileInMongo['fileUnits'], 'presignedUrl': response, 'optMsg': optMsg}
     else:
         raise Exception(f'Not able to find the file for given parameters it should be either private or public')
+
+
+def setFeedback(qParams):
+    fbCollection.insert_one(qParams)
+    return {'status': 'success'}
 
 
 def getPresignedUrlForUpload(tempBody):
@@ -271,18 +279,17 @@ def getPresignedUrlForUpload(tempBody):
     }
     logger.info(f'data need to be inserted : {str(rowInDb)}')
 
-    # generate presigned url
     # TODO expiration time
-    # response = s3_client.generate_presigned_url('put_object',
-    # Params={'Bucket': 'starvensdriveguest', 'Key': f'{curUrl}/{fileName}'})
+    # response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdrive',
+    #                                                                   'Key': f'{curUrl}/{fileName}',
+    #                                                                   'ContentType': 'multipart/form-data'})
     response = s3_client.generate_presigned_url('put_object', Params={'Bucket': 'starvensdrive',
                                                                       'Key': f'{curUrl}/{fileName}',
-                                                                      'ContentType': 'binary/octet-stream'})
+                                                                      'ContentType': tempBody['contentType']})
 
     urlCollection.insert_one(rowInDb)
     logger.info('successfully inserted into mongo')
 
-    # temp = {'presignedUrl': response, 'publicUrl': f'http://localhost:3000/share/{curUrl}/{fileName}'}
     temp = {'presignedUrl': response, 'publicUrl': consId}
     return temp
 
@@ -327,6 +334,10 @@ def lambda_handler(event, context):
 
         if event['resource'] == '/file':
             temp = getFileDetails(queryParams)
+            return {**sample_resp, 'body': json.dumps(temp)}
+
+        if event['resource'] == '/feedback':
+            temp = setFeedback(tempBody)
             return {**sample_resp, 'body': json.dumps(temp)}
 
     except Exception as e:
