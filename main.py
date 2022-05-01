@@ -1,7 +1,7 @@
 import json
 import os
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, To
+from sendgrid.helpers.mail import Mail, From, Email
 import pytz
 import uuid
 
@@ -108,8 +108,10 @@ def validatePwd(req):
 
 def sendEmailUsingTemplate(req, templateId, templateData):
     logger.info(req)
+    # here changed the email from no-reply@starvens.com to starvens
+    # added email name and email to the twilio api
     msg = Mail(
-        from_email='no-reply@starvens.com',
+        from_email=From(email='no-reply@starvens.com', name='Starvens'),
         to_emails=req['toEmail']
         # to_emails=req['toEmail'],
         # subject=req['subject'],
@@ -195,7 +197,7 @@ def sendFileLinkToUser(req):
     mongoRow = mongoRow[0]
     expTime = datetime.datetime.now(timeZone) + datetime.timedelta(days=1)
     # emailRes = sendEmail(emailData)
-    publicUrl = f'http://localhost:3000/share/0/{mongoRow["uniqueId"]}'
+    publicUrl = f'https://www.starvens.com/share/0/{mongoRow["uniqueId"]}'
     templateData = {'fileSize': f'{mongoRow["fileSize"]} {mongoRow["fileUnits"]}',
                     'expDate': str(f'{expTime.strftime("%d %B, %Y, %I:%M %p")} US/Central'),
                     'fileLink': publicUrl, 'fileName': mongoRow['fileName'], 'subject': req['subject'],
@@ -221,13 +223,16 @@ def sendEmail(req):
         logger.error(e)
 
 
+
+
 def getAllUrls(qParams):
     consId = qParams['consid']
     mongoResp = urlCollection.find_one({'consId': consId})
     if not mongoResp:
         raise Exception(f'not able to find the consolodiate id given: {consId}')
-    return {'pubUrl': f'http://localhost:3000/share/0/{mongoResp["uniqueId"]}',
-            'priUrl': f'http://localhost:3000/share/1/{mongoResp["privateId"]}'}
+    #changed the public url
+    return {'pubUrl': f'https://www.starvens.com/share/0/{mongoResp["uniqueId"]}',
+            'priUrl': f'https://www.starvens.com/share/1/{mongoResp["privateId"]}'}
 
 
 def getFileDetails(qParams):
